@@ -12,13 +12,13 @@ public class Target {
     private int vy;
     private Image image;
 
-    public Target(int x, int y, int width, int height, int points, String imagePath) {
+    public Target(int x, int y, int width, int height, int points, String imagePath, int speed) {
         this.x = x;
         this.y = y;
         this.width = width;
         this.height = height;
         this.points = points;
-        this.vy = 2;
+        this.vy = speed;
         loadImage(imagePath);
     }
 
@@ -26,24 +26,13 @@ public class Target {
         try {
             java.net.URL imgURL = getClass().getClassLoader().getResource(path);
             if (imgURL != null) image = new ImageIcon(imgURL).getImage();
-        } catch (Exception e) {
-            image = null;
-        }
+        } catch (Exception e) { image = null; }
     }
-
-    public void setVelocity(int vy) { this.vy = vy; }
-    public void setY(int y) { this.y = y; }
 
     public void move(int panelHeight) {
         y += vy;
-        int minY = 30;
-        int maxY = panelHeight - height - 30;
-        if (y < minY) {
-            y = minY;
-            vy = -vy;
-        }
-        if (y > maxY) {
-            y = maxY;
+        // Отскок от краев
+        if (y < 20 || y > panelHeight - height - 50) {
             vy = -vy;
         }
     }
@@ -51,15 +40,14 @@ public class Target {
     public Rectangle getBounds() { return new Rectangle(x, y, width, height); }
     public int getPoints() { return points; }
 
-    public void draw(Graphics g) {
+    public void draw(Graphics2D g2d) {
         if (image != null) {
-            g.drawImage(image, x, y, width, height, null);
+            g2d.drawImage(image, x, y, width, height, null);
         } else {
-            g.setColor(points == 1 ? new Color(34, 139, 34) : new Color(178, 34, 34));
-            g.fillOval(x, y, width, height);
-            g.setColor(Color.BLACK);
-            g.drawOval(x, y, width, height);
-            g.drawString(String.valueOf(points), x + width/2 - 5, y + height/2 + 5);
+            g2d.setColor(points == 1 ? Color.BLUE : Color.RED);
+            g2d.fillOval(x, y, width, height);
+            g2d.setColor(Color.BLACK);
+            g2d.drawOval(x, y, width, height);
         }
     }
 }
