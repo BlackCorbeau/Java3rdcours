@@ -19,22 +19,16 @@ public class Target {
         this.height = height;
         this.points = points;
         this.vy = speed;
-        loadImage(imagePath);
-    }
 
-    private void loadImage(String path) {
         try {
-            java.net.URL imgURL = getClass().getClassLoader().getResource(path);
-            if (imgURL != null) image = new ImageIcon(imgURL).getImage();
-        } catch (Exception e) { image = null; }
+            java.net.URL url = getClass().getClassLoader().getResource(imagePath);
+            if (url != null) image = new ImageIcon(url).getImage();
+        } catch (Exception e) {}
     }
 
     public void move(int panelHeight) {
         y += vy;
-        // Отскок от краев
-        if (y < 20 || y > panelHeight - height - 50) {
-            vy = -vy;
-        }
+        if (y < 10 || y > panelHeight - height - 50) vy = -vy;
     }
 
     public Rectangle getBounds() { return new Rectangle(x, y, width, height); }
@@ -44,10 +38,13 @@ public class Target {
         if (image != null) {
             g2d.drawImage(image, x, y, width, height, null);
         } else {
-            g2d.setColor(points == 1 ? Color.BLUE : Color.RED);
+            // Если нет картинки — рисуем классическую мишень
+            g2d.setColor(Color.RED);
             g2d.fillOval(x, y, width, height);
-            g2d.setColor(Color.BLACK);
-            g2d.drawOval(x, y, width, height);
+            g2d.setColor(Color.WHITE);
+            g2d.fillOval(x + width/4, y + height/4, width/2, height/2);
+            g2d.setColor(Color.RED);
+            g2d.fillOval(x + width/3 + 2, y + height/3 + 2, width/4, height/4);
         }
     }
 }
