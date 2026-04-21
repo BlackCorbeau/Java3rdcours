@@ -1,6 +1,5 @@
 package com.archerygame;
 
-import javax.swing.Timer;
 import javax.swing.*;
 import java.awt.*;
 import java.util.List;
@@ -12,25 +11,29 @@ public class GameController {
     private volatile boolean gameRunning = false;
     private volatile boolean paused = false;
 
-    // Список активных стрел (CopyOnWriteArrayList безопасен для перебора и удаления одновременно)
     private final List<Point> arrows = new CopyOnWriteArrayList<>();
-    private static final int ARROW_SPEED = 20;
-
     private final List<Target> targets = new CopyOnWriteArrayList<>();
-    private Timer gameTimer;
+
+    private Thread gameThread;
+
     private GamePanel gamePanel;
     private JLabel scoreLabel;
     private JLabel shotsLabel;
 
-    public void setGamePanel(GamePanel panel) { this.gamePanel = panel; }
-    public void setScoreLabel(JLabel label) { this.scoreLabel = label; }
-    public void setShotsLabel(JLabel label) { this.shotsLabel = label; }
+    private static final int ARROW_SPEED = 20;
+    private static final int TARGET_FPS = 60;
+    private static final long FRAME_TIME_MS = 1000 / TARGET_FPS; // ≈16.67 мс
 
-    public void initTargets(int panelHeight) {
-        targets.clear();
-        // Создаем мишени: X, Y, W, H, Очки, Путь, Скорость
-        targets.add(new Target(580, 100, 55, 55, 1, "images/target1.png", 3));
-        targets.add(new Target(700, 250, 45, 45, 3, "images/target2.png", -5));
+    public void setGamePanel(GamePanel panel) {
+        this.gamePanel = panel;
+    }
+
+    public void setScoreLabel(JLabel label) {
+        this.scoreLabel = label;
+    }
+
+    public void setShotsLabel(JLabel label) {
+        this.shotsLabel = label;
     }
 
     public void startGame(int panelHeight) {
@@ -44,41 +47,34 @@ public class GameController {
         gameRunning = true;
         paused = false;
 
-        // 16ms ≈ 60 FPS. Самый стабильный вариант для Swing.
-        gameTimer = new Timer(16, e -> updateTick());
-        gameTimer.start();
+        gameThread = new Thread(this::gameLoop);
+        gameThread.setDaemon(true);
+        gameThread.start();
     }
 
-    private void updateTick() {
-        if (!gameRunning || paused) return;
-
-        // Двигаем мишени
-        for (Target t : targets) {
-            t.move(gamePanel.getHeight());
-        }
-
-        // Двигаем и проверяем все стрелы
-        for (Point arrow : arrows) {
-            arrow.x += ARROW_SPEED;
-
-            // Коллизия (попадание)
-            Rectangle arrowRect = new Rectangle(arrow.x, arrow.y, 25, 4);
-            for (Target t : targets) {
-                if (arrowRect.intersects(t.getBounds())) {
-                    score += t.getPoints();
-                    arrows.remove(arrow);
-                    updateUI();
-                    break;
-                }
+    public void stopGame() {
+        gameRunning = false;
+        if (gameThread != null) {
+            gameThread.interrupt();
+            try {
+                gameThread.join(500);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
             }
-
-            // Удаляем, если улетела за экран
-            if (arrow.x > gamePanel.getWidth()) {
-                arrows.remove(arrow);
-            }
+            gameThread = null;
         }
+        arrows.clear();
+        targets.clear();
+        if (gamePanel != null) {
+            gamePanel.repaint();
+        }
+        updateUI();
+    }
 
-        gamePanel.repaint(); // Отрисовка кадра
+    public void togglePause() {
+        if (gameRunning) {
+            paused = !paused;
+        }
     }
 
     public void shootArrow(int startX, int startY) {
@@ -88,15 +84,69 @@ public class GameController {
         updateUI();
     }
 
-    public void stopGame() {
-        gameRunning = false;
-        if (gameTimer != null) gameTimer.stop();
-        arrows.clear();
-        if (gamePanel != null) gamePanel.repaint();
+    private void initTargets(int panelHeight) {
+        targets.clear();
+        targets.add(new Target(580, 100, 55, 55, 1, "images/target1.png", 3));
+        targets.add(new Target(700, 250, 45, 45, 3, "images/target2.png", -5));
     }
 
-    public void togglePause() {
-        if (gameRunning) paused = !paused;
+    private void gameLoop() {
+        long lastTime = System.nanoTime();
+        while (gameRunning) {
+            long now = System.nanoTime();
+            long deltaNs = now - lastTime;
+
+            if (deltaNs >= FRAME_TIME_MS * 1_000_000) {
+                lastTime = now;
+
+                if (!paused) {
+                    updateGameLogic();
+                }
+
+                SwingUtilities.invokeLater(() -> {
+                    if (gamePanel != null) gamePanel.repaint();
+                });
+            } else {
+                Thread.yield();
+            }
+
+            try {
+                Thread.sleep(1);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
+    }
+
+    private void updateGameLogic() {
+        if (gamePanel == null) return;
+        int panelHeight = gamePanel.getHeight();
+
+        for (Target t : targets) {
+            t.move(panelHeight);
+        }
+
+        for (Point arrow : arrows) {
+            arrow.x += ARROW_SPEED;
+
+            Rectangle arrowRect = new Rectangle(arrow.x, arrow.y, 25, 4);
+            boolean hit = false;
+            for (Target t : targets) {
+                if (arrowRect.intersects(t.getBounds())) {
+                    score += t.getPoints();
+                    arrows.remove(arrow);
+                    updateUI();
+                    hit = true;
+                    break;
+                }
+            }
+            if (hit) continue;
+
+            if (arrow.x > gamePanel.getWidth()) {
+                arrows.remove(arrow);
+            }
+        }
     }
 
     private void updateUI() {
@@ -106,8 +156,19 @@ public class GameController {
         });
     }
 
-    public List<Target> getTargets() { return targets; }
-    public List<Point> getArrows() { return arrows; }
-    public boolean isGameRunning() { return gameRunning; }
-    public boolean isPaused() { return paused; }
+    public List<Target> getTargets() {
+        return targets;
+    }
+
+    public List<Point> getArrows() {
+        return arrows;
+    }
+
+    public boolean isGameRunning() {
+        return gameRunning;
+    }
+
+    public boolean isPaused() {
+        return paused;
+    }
 }
