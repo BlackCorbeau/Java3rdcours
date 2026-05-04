@@ -70,23 +70,30 @@ public class GameServer {
     }
 
     // Возвращает: 0 – успех, -1 – имя занято, -2 – игра уже идёт
-    public int addPlayer(String name, ClientHandler handler) {
+    public boolean addPlayer(String name, ClientHandler handler) {
         synchronized (lock) {
-            if (gameRunning) return -2;
+            if (gameRunning) return false;
             for (PlayerInfo p : players) {
-                if (p.getName().equals(name)) return -1;
+                if (p.getName().equals(name)) return false;
             }
-            // Получаем количество побед из БД
+            // Загружаем количество побед из БД (объявляем переменную вне try)
             int winsFromDb = 0;
-            try (Session session = sessionFactory.openSession()) {
-                PersistentPlayer pp = session.get(PersistentPlayer.class, name);
-                if (pp != null) winsFromDb = pp.getWins();
-            } catch (Exception e) { e.printStackTrace(); }
+            if (sessionFactory != null) {
+                try (Session session = sessionFactory.openSession()) {
+                    PersistentPlayer pp = session
+                            .createQuery("from PersistentPlayer where name = :name", PersistentPlayer.class)
+                            .setParameter("name", name)
+                            .uniqueResult();
+                    if (pp != null) winsFromDb = pp.getWins();
+                } catch (Exception e) {
+                    System.err.println("Ошибка загрузки статистики для " + name + ": " + e.getMessage());
+                }
+            }
             PlayerInfo newPlayer = new PlayerInfo(name);
-            newPlayer.setTotalWins(winsFromDb);
+            newPlayer.setTotalWins(winsFromDb);  // теперь переменная доступна
             players.add(newPlayer);
             handler.setPlayerInfo(newPlayer);
-            return 0;
+            return true;
         }
     }
 
@@ -187,16 +194,21 @@ public class GameServer {
     }
 
     private void updateWinnerStats(String winnerName) {
+        if (sessionFactory == null) return;
         try (Session session = sessionFactory.openSession()) {
             Transaction tx = session.beginTransaction();
-            PersistentPlayer pp = session.get(PersistentPlayer.class, winnerName);
+            PersistentPlayer pp = session
+                    .createQuery("from PersistentPlayer where name = :name", PersistentPlayer.class)
+                    .setParameter("name", winnerName)
+                    .uniqueResult();
             if (pp == null) pp = new PersistentPlayer(winnerName, 0);
             pp.setWins(pp.getWins() + 1);
             session.saveOrUpdate(pp);
             tx.commit();
-        } catch (Exception e) { e.printStackTrace(); }
-
-        // Обновить totalWins в PlayerInfo для всех клиентов
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        // Обновляем totalWins в памяти
         for (PlayerInfo p : players) {
             if (p.getName().equals(winnerName)) {
                 p.setTotalWins(p.getTotalWins() + 1);

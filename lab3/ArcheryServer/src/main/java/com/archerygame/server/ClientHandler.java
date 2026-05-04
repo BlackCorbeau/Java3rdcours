@@ -41,13 +41,8 @@ public class ClientHandler implements Runnable {
         try {
             String name = (String) in.readObject();
             // Проверка: можно ли добавить игрока?
-            int addResult = server.addPlayer(name, this);
-            if (addResult == -1) {
+            if (!server.addPlayer(name, this)) {
                 out.writeObject("NAME_TAKEN");
-                socket.close();
-                return;
-            } else if (addResult == -2) {
-                out.writeObject("GAME_RUNNING");
                 socket.close();
                 return;
             }

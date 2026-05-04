@@ -3,12 +3,12 @@ package com.archerygame.common;
 import java.io.Serializable;
 
 public class PlayerInfo implements Serializable {
-    private static final long serialVersionUID = 2L; // изменён для совместимости
+    private static final long serialVersionUID = 2L;  // Увеличили версию
     private String name;
     private int score;
     private int shots;
     private boolean ready;
-    private int totalWins; // новое поле – количество побед (из БД)
+    private int totalWins;  // новое поле – количество побед (из БД)
 
     public PlayerInfo(String name) {
         this.name = name;

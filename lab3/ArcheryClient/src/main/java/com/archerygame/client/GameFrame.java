@@ -7,6 +7,9 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
+import java.util.Comparator;
+import java.util.List;
+import java.util.stream.Collectors;
 
 @Component
 public class GameFrame extends JFrame {
@@ -14,6 +17,8 @@ public class GameFrame extends JFrame {
     private final GamePanel gamePanel;
     private JLabel scoreLabel, shotsLabel, winsLabel;
     private JButton readyButton, pauseButton;
+    private JList<String> leadersList;      // список лидеров
+    private DefaultListModel<String> leadersModel;
     private Thread uiUpdateThread;
     private volatile boolean running = true;
 
@@ -41,13 +46,14 @@ public class GameFrame extends JFrame {
         setLayout(new BorderLayout());
         add(gamePanel, BorderLayout.CENTER);
 
+        // ----- Панель управления внизу -----
         JPanel controlPanel = new JPanel();
         readyButton = new JButton("Готов");
         pauseButton = new JButton("Пауза");
         pauseButton.setEnabled(false);
         scoreLabel = new JLabel("Счёт: 0");
         shotsLabel = new JLabel("Выстрелы: 0");
-        winsLabel = new JLabel("Побед: 0"); // новая метка
+        winsLabel = new JLabel("Побед: 0");
 
         controlPanel.add(readyButton);
         controlPanel.add(pauseButton);
@@ -55,6 +61,33 @@ public class GameFrame extends JFrame {
         controlPanel.add(shotsLabel);
         controlPanel.add(winsLabel);
         add(controlPanel, BorderLayout.SOUTH);
+
+        // ----- Панель лидеров в правом верхнем углу -----
+        JPanel topRightPanel = new JPanel();
+        topRightPanel.setLayout(new BorderLayout());
+        topRightPanel.setBackground(new Color(0, 0, 0, 150));
+        topRightPanel.setOpaque(true);
+        topRightPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+
+        JLabel leadersTitle = new JLabel("Лидеры (по победам)");
+        leadersTitle.setForeground(Color.WHITE);
+        leadersTitle.setFont(new Font("Arial", Font.BOLD, 14));
+        topRightPanel.add(leadersTitle, BorderLayout.NORTH);
+
+        leadersModel = new DefaultListModel<>();
+        leadersList = new JList<>(leadersModel);
+        leadersList.setBackground(new Color(0, 0, 0, 180));
+        leadersList.setForeground(Color.WHITE);
+        leadersList.setFont(new Font("Monospaced", Font.PLAIN, 12));
+        leadersList.setFixedCellHeight(20);
+        JScrollPane scrollPane = new JScrollPane(leadersList);
+        scrollPane.setOpaque(false);
+        scrollPane.setBorder(BorderFactory.createEmptyBorder());
+        topRightPanel.add(scrollPane, BorderLayout.CENTER);
+
+        // Позиционируем панель в правом верхнем углу
+        add(topRightPanel, BorderLayout.NORTH);
+        ((JPanel) getContentPane()).setComponentZOrder(topRightPanel, 0); // поверх игровой панели
 
         readyButton.addActionListener(e -> {
             client.sendReady();
@@ -87,15 +120,30 @@ public class GameFrame extends JFrame {
     }
 
     private void updateUi(GameState state) {
-        // обновляем счёт, выстрелы и победы текущего игрока
+        // Обновляем данные текущего игрока
+        int myTotalWins = 0;
         for (PlayerInfo p : state.getPlayers()) {
             if (p.getName().equals(client.getPlayerName())) {
                 scoreLabel.setText("Счёт: " + p.getScore());
                 shotsLabel.setText("Выстрелы: " + p.getShots());
-                winsLabel.setText("Побед: " + p.getTotalWins());
+                myTotalWins = p.getTotalWins();
+                winsLabel.setText("Побед: " + myTotalWins);
                 break;
             }
         }
+
+        // Обновляем список лидеров (сортируем по totalWins, затем по имени)
+        List<PlayerInfo> sorted = state.getPlayers().stream()
+                .sorted(Comparator.comparingInt(PlayerInfo::getTotalWins).reversed()
+                        .thenComparing(PlayerInfo::getName))
+                .collect(Collectors.toList());
+
+        leadersModel.clear();
+        for (PlayerInfo p : sorted) {
+            leadersModel.addElement(String.format("%-10s %3d", p.getName(), p.getTotalWins()));
+        }
+
+        // Управление кнопками
         if (state.getWinner() != null) {
             readyButton.setEnabled(true);
             pauseButton.setEnabled(false);
