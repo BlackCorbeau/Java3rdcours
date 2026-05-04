@@ -7,9 +7,7 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
-import java.util.Comparator;
 import java.util.List;
-import java.util.stream.Collectors;
 
 @Component
 public class GameFrame extends JFrame {
@@ -17,7 +15,7 @@ public class GameFrame extends JFrame {
     private final GamePanel gamePanel;
     private JLabel scoreLabel, shotsLabel, winsLabel;
     private JButton readyButton, pauseButton;
-    private JList<String> leadersList;      // список лидеров
+    private JList<String> leadersList;
     private DefaultListModel<String> leadersModel;
     private Thread uiUpdateThread;
     private volatile boolean running = true;
@@ -69,7 +67,7 @@ public class GameFrame extends JFrame {
         topRightPanel.setOpaque(true);
         topRightPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
-        JLabel leadersTitle = new JLabel("Лидеры (по победам)");
+        JLabel leadersTitle = new JLabel("Топ игроков (всех времён)");
         leadersTitle.setForeground(Color.WHITE);
         leadersTitle.setFont(new Font("Arial", Font.BOLD, 14));
         topRightPanel.add(leadersTitle, BorderLayout.NORTH);
@@ -85,9 +83,8 @@ public class GameFrame extends JFrame {
         scrollPane.setBorder(BorderFactory.createEmptyBorder());
         topRightPanel.add(scrollPane, BorderLayout.CENTER);
 
-        // Позиционируем панель в правом верхнем углу
         add(topRightPanel, BorderLayout.NORTH);
-        ((JPanel) getContentPane()).setComponentZOrder(topRightPanel, 0); // поверх игровой панели
+        ((JPanel) getContentPane()).setComponentZOrder(topRightPanel, 0);
 
         readyButton.addActionListener(e -> {
             client.sendReady();
@@ -132,15 +129,13 @@ public class GameFrame extends JFrame {
             }
         }
 
-        // Обновляем список лидеров (сортируем по totalWins, затем по имени)
-        List<PlayerInfo> sorted = state.getPlayers().stream()
-                .sorted(Comparator.comparingInt(PlayerInfo::getTotalWins).reversed()
-                        .thenComparing(PlayerInfo::getName))
-                .collect(Collectors.toList());
-
+        // Обновляем глобальный рейтинг (всех игроков из БД)
+        List<PlayerInfo> leaders = state.getLeaderboard();
         leadersModel.clear();
-        for (PlayerInfo p : sorted) {
-            leadersModel.addElement(String.format("%-10s %3d", p.getName(), p.getTotalWins()));
+        if (leaders != null) {
+            for (PlayerInfo p : leaders) {
+                leadersModel.addElement(String.format("%-10s %3d", p.getName(), p.getTotalWins()));
+            }
         }
 
         // Управление кнопками

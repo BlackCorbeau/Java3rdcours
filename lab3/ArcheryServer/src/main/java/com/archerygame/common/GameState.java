@@ -5,22 +5,25 @@ import java.awt.Point;
 import java.util.List;
 
 public class GameState implements Serializable {
-    private static final long serialVersionUID = 1L;
+    private static final long serialVersionUID = 2L;
     private List<Target> targets;
     private List<Point> arrows;
     private List<PlayerInfo> players;
     private String winner;
     private boolean paused;
     private boolean gameRunning;
+    private List<PlayerInfo> leaderboard;  // добавлено поле
 
     public GameState(List<Target> targets, List<Point> arrows, List<PlayerInfo> players,
-                     String winner, boolean paused, boolean gameRunning) {
+                     String winner, boolean paused, boolean gameRunning,
+                     List<PlayerInfo> leaderboard) {
         this.targets = targets;
         this.arrows = arrows;
         this.players = players;
         this.winner = winner;
         this.paused = paused;
         this.gameRunning = gameRunning;
+        this.leaderboard = leaderboard;
     }
 
     public List<Target> getTargets() { return targets; }
@@ -29,4 +32,5 @@ public class GameState implements Serializable {
     public String getWinner() { return winner; }
     public boolean isPaused() { return paused; }
     public boolean isGameRunning() { return gameRunning; }
+    public List<PlayerInfo> getLeaderboard() { return leaderboard; }
 }

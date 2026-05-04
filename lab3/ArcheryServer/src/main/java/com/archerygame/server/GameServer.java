@@ -257,7 +257,7 @@ public class GameServer {
 
         GameState state = new GameState(
                 targetsCopy, arrowPoints, playersCopy,
-                winnerCopy, pausedCopy, gameRunningCopy
+                winnerCopy, pausedCopy, gameRunningCopy, loadLeaderboard()
         );
 
         synchronized (lock) {
@@ -274,5 +274,24 @@ public class GameServer {
             System.out.println("[" + new Date() + "] Клиент " + handler.getPlayerInfo().getName() + " отключён");
         }
         broadcastState();
+    }
+
+    private List<PlayerInfo> loadLeaderboard() {
+        List<PlayerInfo> leaders = new ArrayList<>();
+        if (sessionFactory == null) return leaders;
+        try (Session session = sessionFactory.openSession()) {
+            List<PersistentPlayer> topPlayers = session
+                    .createQuery("from PersistentPlayer order by wins desc", PersistentPlayer.class)
+                    .setMaxResults(10)
+                    .list();
+            for (PersistentPlayer pp : topPlayers) {
+                PlayerInfo info = new PlayerInfo(pp.getName());
+                info.setTotalWins(pp.getWins());
+                leaders.add(info);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return leaders;
     }
 }
