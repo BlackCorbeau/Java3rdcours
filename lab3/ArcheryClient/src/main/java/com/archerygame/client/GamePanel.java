@@ -58,10 +58,9 @@ public class GamePanel extends JPanel {
         Graphics2D g2d = (Graphics2D) g;
         g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
-        // Фон (небо)
+        // Фон
         g2d.setPaint(new GradientPaint(0, 0, new Color(135, 206, 250), 0, getHeight(), Color.WHITE));
         g2d.fillRect(0, 0, getWidth(), getHeight());
-        // Земля
         g2d.setColor(new Color(50, 160, 50));
         g2d.fillRoundRect(-10, getHeight() - 40, getWidth() + 20, 60, 30, 30);
 
@@ -77,10 +76,10 @@ public class GamePanel extends JPanel {
         GameState state = client.getCurrentState();
         if (state == null) return;
 
-        // Стрелы
+        // Стрелы (теперь NetworkPoint)
         g2d.setColor(new Color(101, 67, 33));
         g2d.setStroke(new BasicStroke(3f));
-        for (Point p : state.getArrows()) {
+        for (NetworkPoint p : state.getArrows()) {
             g2d.drawLine(p.x, p.y, p.x + 22, p.y);
             g2d.setColor(Color.RED);
             g2d.fillOval(p.x + 20, p.y - 2, 6, 5);

@@ -8,20 +8,20 @@ import org.hibernate.Transaction;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import java.awt.Point;
-import java.awt.Rectangle;
 import java.io.*;
 import java.net.*;
 import java.util.*;
 import java.util.Date;
+import java.util.stream.Collectors;
 
 @Component
 public class GameServer {
     private int port;
     private static final int MAX_PLAYERS = 4;
-    private static final int PANEL_HEIGHT = 500;  // синхронизировано с клиентом
+    private static final int PANEL_HEIGHT = 500;
 
     private final List<ClientHandler> clients = new ArrayList<>();
+    private final List<ClientHandler> observers = new ArrayList<>();
     private final List<PlayerInfo> players = new ArrayList<>();
     private final List<Target> targets = new ArrayList<>();
     private final List<Arrow> arrows = new ArrayList<>();
@@ -36,9 +36,9 @@ public class GameServer {
     private SessionFactory sessionFactory;
 
     private static class Arrow implements Serializable {
-        Point point;
+        NetworkPoint point;
         int ownerIndex;
-        Arrow(Point p, int idx) { point = p; ownerIndex = idx; }
+        Arrow(NetworkPoint p, int idx) { point = p; ownerIndex = idx; }
     }
 
     public GameServer() {
@@ -69,14 +69,20 @@ public class GameServer {
         }
     }
 
-    // Возвращает: 0 – успех, -1 – имя занято, -2 – игра уже идёт
     public boolean addPlayer(String name, ClientHandler handler) {
         synchronized (lock) {
+            if (name.startsWith("OBSERVER_")) {
+                observers.add(handler);
+                handler.setPlayerInfo(null);
+                System.out.println("[" + new Date() + "] Наблюдатель " + name + " подключён");
+                return true;
+            }
+
             if (gameRunning) return false;
             for (PlayerInfo p : players) {
                 if (p.getName().equals(name)) return false;
             }
-            // Загружаем количество побед из БД (объявляем переменную вне try)
+
             int winsFromDb = 0;
             if (sessionFactory != null) {
                 try (Session session = sessionFactory.openSession()) {
@@ -90,7 +96,7 @@ public class GameServer {
                 }
             }
             PlayerInfo newPlayer = new PlayerInfo(name);
-            newPlayer.setTotalWins(winsFromDb);  // теперь переменная доступна
+            newPlayer.setTotalWins(winsFromDb);
             players.add(newPlayer);
             handler.setPlayerInfo(newPlayer);
             return true;
@@ -100,7 +106,8 @@ public class GameServer {
     public void setReady(ClientHandler handler) {
         synchronized (lock) {
             if (gameRunning) return;
-            handler.getPlayerInfo().setReady(true);
+            PlayerInfo pi = handler.getPlayerInfo();
+            if (pi != null) pi.setReady(true);
         }
         broadcastState();
         checkAllReady();
@@ -109,8 +116,11 @@ public class GameServer {
     private void checkAllReady() {
         synchronized (lock) {
             if (gameRunning) return;
-            if (players.isEmpty()) return;
-            for (PlayerInfo p : players) {
+            List<PlayerInfo> realPlayers = players.stream()
+                    .filter(p -> p != null && !p.getName().startsWith("OBSERVER_"))
+                    .collect(Collectors.toList());
+            if (realPlayers.isEmpty()) return;
+            for (PlayerInfo p : realPlayers) {
                 if (!p.isReady()) return;
             }
             startGame();
@@ -151,7 +161,7 @@ public class GameServer {
                     List<Arrow> toRemove = new ArrayList<>();
                     for (Arrow arrow : arrows) {
                         arrow.point.x += 20;
-                        Rectangle arrowRect = new Rectangle(arrow.point.x, arrow.point.y, 25, 4);
+                        NetworkRectangle arrowRect = new NetworkRectangle(arrow.point.x, arrow.point.y, 25, 4);
                         boolean hit = false;
                         for (Target t : targets) {
                             if (arrowRect.intersects(t.getBounds())) {
@@ -173,7 +183,6 @@ public class GameServer {
             }
             broadcastState();
 
-            // Проверка победителя и обновление БД
             synchronized (lock) {
                 if (winner != null && gameRunning) {
                     updateWinnerStats(winner);
@@ -208,7 +217,6 @@ public class GameServer {
         } catch (Exception e) {
             e.printStackTrace();
         }
-        // Обновляем totalWins в памяти
         for (PlayerInfo p : players) {
             if (p.getName().equals(winnerName)) {
                 p.setTotalWins(p.getTotalWins() + 1);
@@ -222,7 +230,7 @@ public class GameServer {
             if (!gameRunning || paused) return;
             int idx = players.indexOf(handler.getPlayerInfo());
             if (idx >= 0) {
-                arrows.add(new Arrow(new Point(x, y), idx));
+                arrows.add(new Arrow(new NetworkPoint(x, y), idx));
                 handler.getPlayerInfo().setShots(handler.getPlayerInfo().getShots() + 1);
             }
         }
@@ -238,7 +246,7 @@ public class GameServer {
     }
 
     public void broadcastState() {
-        List<Point> arrowPoints;
+        List<NetworkPoint> arrowPoints;
         List<Target> targetsCopy;
         List<PlayerInfo> playersCopy;
         String winnerCopy;
@@ -261,17 +269,19 @@ public class GameServer {
         );
 
         synchronized (lock) {
-            for (ClientHandler client : clients) {
-                client.sendState(state);
-            }
+            for (ClientHandler client : clients) client.sendState(state);
+            for (ClientHandler observer : observers) observer.sendState(state);
         }
     }
 
     public void removeClient(ClientHandler handler) {
         synchronized (lock) {
             clients.remove(handler);
+            observers.remove(handler);
             players.remove(handler.getPlayerInfo());
-            System.out.println("[" + new Date() + "] Клиент " + handler.getPlayerInfo().getName() + " отключён");
+            System.out.println("[" + new Date() + "] Клиент " +
+                    (handler.getPlayerInfo() != null ? handler.getPlayerInfo().getName() : "наблюдатель") +
+                    " отключён");
         }
         broadcastState();
     }

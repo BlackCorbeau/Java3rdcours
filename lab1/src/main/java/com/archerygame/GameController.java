@@ -15,6 +15,7 @@ public class GameController {
     private final List<Target> targets = new CopyOnWriteArrayList<>();
 
     private Thread gameThread;
+    private final Object pauseLock = new Object();
 
     private GamePanel gamePanel;
     private JLabel scoreLabel;
@@ -54,6 +55,9 @@ public class GameController {
 
     public void stopGame() {
         gameRunning = false;
+        synchronized (pauseLock) {
+            pauseLock.notify();
+        }
         if (gameThread != null) {
             gameThread.interrupt();
             try {
@@ -73,7 +77,12 @@ public class GameController {
 
     public void togglePause() {
         if (gameRunning) {
-            paused = !paused;
+            synchronized (pauseLock) {
+                paused = !paused;
+                if (!paused) {
+                    pauseLock.notify();
+                }
+            }
         }
     }
 
@@ -93,28 +102,39 @@ public class GameController {
     private void gameLoop() {
         long lastTime = System.nanoTime();
         while (gameRunning) {
+            synchronized (pauseLock) {
+                while (paused && gameRunning) {
+                    try {
+                        pauseLock.wait();
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        return;
+                    }
+                }
+            }
+
             long now = System.nanoTime();
             long deltaNs = now - lastTime;
 
             if (deltaNs >= FRAME_TIME_MS * 1_000_000) {
                 lastTime = now;
-
-                if (!paused) {
-                    updateGameLogic();
-                }
+                updateGameLogic();
 
                 SwingUtilities.invokeLater(() -> {
                     if (gamePanel != null) gamePanel.repaint();
                 });
             } else {
-                Thread.yield();
-            }
-
-            try {
-                Thread.sleep(1);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                break;
+                long sleepMs = (FRAME_TIME_MS * 1_000_000 - deltaNs) / 1_000_000;
+                if (sleepMs > 0) {
+                    synchronized (pauseLock) {
+                        try {
+                            pauseLock.wait(sleepMs);
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                            break;
+                        }
+                    }
+                }
             }
         }
     }

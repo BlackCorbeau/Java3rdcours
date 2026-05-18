@@ -1,10 +1,9 @@
 package com.archerygame.common;
 
-import java.awt.*;
 import java.io.Serializable;
 
 public class Target implements Serializable {
-    private static final long serialVersionUID = 1L;
+    private static final long serialVersionUID = 2L;
     private int x, y, width, height, points, vy;
 
     public Target(int x, int y, int width, int height, int points, int vy) {
@@ -28,19 +27,24 @@ public class Target implements Serializable {
         }
     }
 
-    public Rectangle getBounds() { return new Rectangle(x, y, width, height); }
+    public NetworkRectangle getBounds() {
+        return new NetworkRectangle(x, y, width, height);
+    }
+
     public int getPoints() { return points; }
     public int getX() { return x; }
     public int getY() { return y; }
     public int getWidth() { return width; }
     public int getHeight() { return height; }
 
-    public void draw(Graphics2D g2d) {
-        g2d.setColor(Color.RED);
+    public void draw(java.awt.Graphics2D g2d) {
+        // Для отрисовки на Windows-клиенте используем оригинальный AWT
+        // Этот метод не используется на Android
+        g2d.setColor(java.awt.Color.RED);
         g2d.fillOval(x, y, width, height);
-        g2d.setColor(Color.WHITE);
+        g2d.setColor(java.awt.Color.WHITE);
         g2d.fillOval(x + width/4, y + height/4, width/2, height/2);
-        g2d.setColor(Color.RED);
+        g2d.setColor(java.awt.Color.RED);
         g2d.fillOval(x + width/3 + 2, y + height/3 + 2, width/4, height/4);
     }
 }

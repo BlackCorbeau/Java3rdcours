@@ -1,20 +1,19 @@
 package com.archerygame.common;
 
 import java.io.Serializable;
-import java.awt.Point;
 import java.util.List;
 
 public class GameState implements Serializable {
-    private static final long serialVersionUID = 2L;
+    private static final long serialVersionUID = 3L; // увеличили версию
     private List<Target> targets;
-    private List<Point> arrows;
+    private List<NetworkPoint> arrows;
     private List<PlayerInfo> players;
     private String winner;
     private boolean paused;
     private boolean gameRunning;
-    private List<PlayerInfo> leaderboard;  // добавлено поле
+    private List<PlayerInfo> leaderboard;
 
-    public GameState(List<Target> targets, List<Point> arrows, List<PlayerInfo> players,
+    public GameState(List<Target> targets, List<NetworkPoint> arrows, List<PlayerInfo> players,
                      String winner, boolean paused, boolean gameRunning,
                      List<PlayerInfo> leaderboard) {
         this.targets = targets;
@@ -27,7 +26,7 @@ public class GameState implements Serializable {
     }
 
     public List<Target> getTargets() { return targets; }
-    public List<Point> getArrows() { return arrows; }
+    public List<NetworkPoint> getArrows() { return arrows; }
     public List<PlayerInfo> getPlayers() { return players; }
     public String getWinner() { return winner; }
     public boolean isPaused() { return paused; }
